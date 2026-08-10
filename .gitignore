@@ -1,0 +1,18 @@
+# git worktrees (project-local, used by superpowers subagent workflow)
+.claude/.worktrees/
+
+# OpenSpec skill / command scaffolding (local-only, not part of the project)
+.claude/commands/opsx/
+.claude/skills/openspec-*/
+
+# openspec
+openspec/
+
+# swiftpm
+.build/
+.swiftpm/
+Package.resolved
+
+# assembled .app and .dmg
+build/
+dist/
