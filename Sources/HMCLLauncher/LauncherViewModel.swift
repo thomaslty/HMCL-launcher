@@ -183,7 +183,7 @@ final class LauncherViewModel {
             }
 
             activity = .starting
-            let running = try launchService.launch(runtime: selectedRuntime, launcher: selectedLauncher)
+            let running = try await launchService.launch(runtime: selectedRuntime, launcher: selectedLauncher)
             log("HMCL started, process \(running.processIdentifier)")
             log("Output goes to \(running.logFile.lastPathComponent)")
         } catch {

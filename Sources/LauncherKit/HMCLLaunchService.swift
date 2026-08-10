@@ -20,6 +20,9 @@ public enum LaunchError: Error, Equatable {
     case noRuntimeInstalled
     case jarMissing
     case spawnFailed(String)
+    /// java started and stopped before HMCL could, which is what a rejected JVM
+    /// option looks like. `output` is the tail of the child's log.
+    case exitedImmediately(status: Int32, output: String)
 }
 
 public struct HMCLLaunchService: Sendable {
@@ -91,15 +94,32 @@ public struct HMCLLaunchService: Sendable {
         )
     }
 
-    /// Starts HMCL and returns immediately.
+    /// Starts HMCL, then checks once that it is still alive.
     ///
     /// No pipes are attached. stdout and stderr go straight to a file, because a
     /// pipe would tie the child's lifetime to ours — the whole point is that
     /// HMCL and Minecraft keep running after this app quits. macOS reparents the
     /// child to launchd on exit.
+    ///
+    /// The liveness check exists because a rejected JVM option kills java before
+    /// HMCL starts, and without it the app would report a pid that is already
+    /// gone. A rejected option exits at once while HMCL's own banner takes about
+    /// 1.5 s, so one look after 800 ms tells the two apart. The check reads the
+    /// log file we already redirect to, so it introduces no pipe.
     @discardableResult
-    public func launch(runtime: JavaRuntime?, launcher: InstalledLauncher?) throws -> RunningHMCL {
-        let plan = try plan(runtime: runtime, launcher: launcher)
+    public func launch(
+        runtime: JavaRuntime?,
+        launcher: InstalledLauncher?,
+        javaOptions: [String] = [],
+        offlineAccountsEnabled: Bool = false,
+        livenessDelay: Duration = .milliseconds(800)
+    ) async throws -> RunningHMCL {
+        let plan = try plan(
+            runtime: runtime,
+            launcher: launcher,
+            javaOptions: javaOptions,
+            offlineAccountsEnabled: offlineAccountsEnabled
+        )
 
         try FileManager.default.createDirectory(at: workspace.logs, withIntermediateDirectories: true)
         for directory in [workspace.hmclUserHome, workspace.hmclLocalHome, workspace.hmclDependencies] {
@@ -130,7 +150,37 @@ public struct HMCLLaunchService: Sendable {
         // Our copy of the write end is no longer needed; the child holds its own.
         try? log.close()
 
+        // Sampled across the window rather than read once at the end. Foundation
+        // notices a child's exit asynchronously, so a single late look can still
+        // say "running" for a process that died milliseconds after spawning.
+        if await died(process, within: livenessDelay) {
+            throw LaunchError.exitedImmediately(
+                status: process.terminationStatus,
+                output: Self.tail(of: plan.logFile)
+            )
+        }
+
         return RunningHMCL(processIdentifier: process.processIdentifier, logFile: plan.logFile)
+    }
+
+    /// True when the child stopped at some point inside the window.
+    private func died(_ process: Process, within window: Duration) async -> Bool {
+        let step = Duration.milliseconds(50)
+        var waited = Duration.zero
+        while waited < window {
+            try? await Task.sleep(for: step)
+            waited += step
+            if !process.isRunning { return true }
+        }
+        return !process.isRunning
+    }
+
+    /// The last few lines of the child's log, which for a rejected option is the
+    /// JVM's own complaint and the only thing worth showing the user.
+    static func tail(of logFile: URL, lines: Int = 12) -> String {
+        guard let text = try? String(contentsOf: logFile, encoding: .utf8) else { return "" }
+        let all = text.split(separator: "\n", omittingEmptySubsequences: false)
+        return all.suffix(lines).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func timestamp() -> String {

@@ -148,19 +148,26 @@ private func makeFakeJar(in workspace: Workspace, version: String = "3.16.3") th
     @Test func launchRedirectsChildOutputIntoTheLogFile() async throws {
         let workspace = makeWorkspace()
         defer { try? FileManager.default.removeItem(at: workspace.root) }
+        // Stays alive, because a child that exits at once is now reported as a
+        // failed launch — see EarlyExitTests.
         let runtime = try makeFakeRuntime(
             in: workspace,
-            script: "#!/bin/sh\necho \"args: $*\"\necho \"user home: $HMCL_USER_HOME\"\n"
+            script: "#!/bin/sh\necho \"args: $*\"\necho \"user home: $HMCL_USER_HOME\"\nsleep 5\n"
         )
         let jar = try makeFakeJar(in: workspace)
         let service = HMCLLaunchService(workspace: workspace, homeDirectory: workspace.root)
 
-        let running = try service.launch(runtime: runtime, launcher: jar)
+        let running = try await service.launch(
+            runtime: runtime,
+            launcher: jar,
+            livenessDelay: .milliseconds(200)
+        )
         #expect(running.processIdentifier > 0)
 
         let contents = try await waitForFile(running.logFile)
         #expect(contents.contains("-jar"))
         #expect(contents.contains(workspace.hmclUserHome.path))
+        kill(running.processIdentifier, SIGTERM)
     }
 
     private func waitForFile(_ url: URL, attempts: Int = 200) async throws -> String {

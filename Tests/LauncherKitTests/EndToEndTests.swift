@@ -44,7 +44,7 @@ struct EndToEndTests {
 
         // 4. Launch HMCL for real.
         let service = HMCLLaunchService(workspace: workspace)
-        let running = try service.launch(runtime: runtime, launcher: launcher)
+        let running = try await service.launch(runtime: runtime, launcher: launcher)
         #expect(running.processIdentifier > 0)
         print("hmcl pid \(running.processIdentifier), log \(running.logFile.path)")
 
