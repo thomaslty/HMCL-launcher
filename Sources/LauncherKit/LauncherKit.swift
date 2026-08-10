@@ -5,5 +5,5 @@ import Foundation
 public enum AppIdentity {
     public static let bundleIdentifier = "net.tlau.HMCLLauncher"
     public static let displayName = "HMCL Launcher"
-    public static let version = "1.0.0"
+    public static let version = "1.0.1"
 }

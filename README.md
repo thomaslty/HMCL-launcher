@@ -26,9 +26,9 @@
 
 - **Never install Java to play**: it fetches its own and keeps it to itself, so whatever you already have on the machine keeps working exactly as before
 - **Always on the current HMCL**: it reads the latest release itself, so you stop hunting GitHub for a jar
+- **Offline accounts, one checkbox**: HMCL hides that login option outside mainland China, and this puts it back without you editing anything
 - **Close the launcher, keep playing**: quitting this window leaves your game running
-- **Your worlds stay yours**: saves live where they always did, and nothing is copied into a private folder you would have to find later
-- **Undo the whole thing**: drag one folder to the Trash and the machine is back to how it started
+- **Nothing to clean up**: your worlds stay where they always were, and dragging one folder to the Trash undoes the rest
 
 ## Quick start
 
@@ -61,6 +61,8 @@ Nothing to set to boot. The app writes one folder, `~/Library/Application Suppor
 | `HMCL_LOCAL_HOME` | set by the app | `<workspace>/hmcl-local` | HMCL's cache and its own logs |
 | `HMCL_DEPENDENCIES_DIR` | set by the app | `<workspace>/hmcl-deps` | HMCL's library cache |
 | `HMCL_INTEGRATION` | to run the live test | unset | `=1` lets `swift test --filter EndToEnd` download for real |
+
+Advanced mode also has a Java options box. What you type goes to the JVM unchanged, before `-jar`, and nothing is filtered — `-Xmx4G` works, and so does a typo that stops java from starting, which the log pane will tell you about. The offline checkbox adds one property, `-Dhmcl.offline.auth.restricted=false`, and anything you type wins over it.
 
 Two flags exist for looking at the UI without Screen Recording permission, see [docs/how-it-works.md](docs/how-it-works.md).
 
