@@ -24,10 +24,12 @@ cp "$BIN" "$BUNDLE/Contents/MacOS/HMCLLauncher"
 cp "$ROOT/Resources/Info.plist" "$BUNDLE/Contents/Info.plist"
 printf 'APPL????' > "$BUNDLE/Contents/PkgInfo"
 
-if [ -f "$ROOT/Resources/AppIcon.icns" ]; then
-  cp "$ROOT/Resources/AppIcon.icns" "$BUNDLE/Contents/Resources/AppIcon.icns"
-  /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$BUNDLE/Contents/Info.plist" 2>/dev/null || true
+# Info.plist declares CFBundleIconFile, so regenerate the icon if it is missing.
+if [ ! -f "$ROOT/Resources/AppIcon.icns" ]; then
+  echo "==> generating icon"
+  swift "$ROOT/scripts/make-icon.swift"
 fi
+cp "$ROOT/Resources/AppIcon.icns" "$BUNDLE/Contents/Resources/AppIcon.icns"
 
 # Apple Silicon refuses to execute code with no signature at all, so ad-hoc sign.
 # Swap "-" for a Developer ID identity when you start notarizing.
