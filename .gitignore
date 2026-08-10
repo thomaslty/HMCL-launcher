@@ -16,3 +16,5 @@ Package.resolved
 # assembled .app and .dmg
 build/
 dist/
+# HMCL source, cloned for reference only
+reference/
