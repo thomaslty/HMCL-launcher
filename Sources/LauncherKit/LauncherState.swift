@@ -10,15 +10,35 @@ public struct LauncherState: Codable, Sendable, Equatable {
     public var mode: UIMode
     public var selectedLauncherVersion: String?
     public var selectedRuntimeID: String?
+    /// Adds `-Dhmcl.offline.auth.restricted=false` at launch. On by default.
+    public var offlineAccountsEnabled: Bool
+    /// Passed to the JVM unchanged.
+    public var customJavaOptions: String
 
     public init(
         mode: UIMode = .simple,
         selectedLauncherVersion: String? = nil,
-        selectedRuntimeID: String? = nil
+        selectedRuntimeID: String? = nil,
+        offlineAccountsEnabled: Bool = true,
+        customJavaOptions: String = ""
     ) {
         self.mode = mode
         self.selectedLauncherVersion = selectedLauncherVersion
         self.selectedRuntimeID = selectedRuntimeID
+        self.offlineAccountsEnabled = offlineAccountsEnabled
+        self.customJavaOptions = customJavaOptions
+    }
+
+    /// Decoded field by field so a `state.json` written by an older version,
+    /// which has none of the newer keys, keeps its mode and selections instead
+    /// of failing to decode and being replaced with defaults.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decodeIfPresent(UIMode.self, forKey: .mode) ?? .simple
+        selectedLauncherVersion = try container.decodeIfPresent(String.self, forKey: .selectedLauncherVersion)
+        selectedRuntimeID = try container.decodeIfPresent(String.self, forKey: .selectedRuntimeID)
+        offlineAccountsEnabled = try container.decodeIfPresent(Bool.self, forKey: .offlineAccountsEnabled) ?? true
+        customJavaOptions = try container.decodeIfPresent(String.self, forKey: .customJavaOptions) ?? ""
     }
 }
 
