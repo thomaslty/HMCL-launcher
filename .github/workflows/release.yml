@@ -1,0 +1,54 @@
+name: release
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Test
+        run: swift test
+
+      - name: Build app and disk image
+        run: ./scripts/make-dmg.sh
+
+      # Draws the real views offscreen. Needs a window server, which a runner may
+      # not give us, so a failure here must not fail the release.
+      - name: Render UI screenshots
+        continue-on-error: true
+        run: |
+          "build/HMCL Launcher.app/Contents/MacOS/HMCLLauncher" --render-screenshots "$RUNNER_TEMP/shots"
+          ls -la "$RUNNER_TEMP/shots"
+
+      - name: Upload disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: HMCL-Launcher-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.dmg \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
