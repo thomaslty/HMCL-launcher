@@ -20,12 +20,24 @@ enum ScreenshotRenderer {
         return URL(fileURLWithPath: arguments[arguments.index(after: flag)])
     }
 
+    /// `--live` draws the app's real state — whatever is actually installed in
+    /// the workspace — instead of the fixtures. That is what makes a screenshot
+    /// evidence rather than a mock-up.
+    static var wantsLiveState: Bool {
+        CommandLine.arguments.contains("--live")
+    }
+
     static func renderAll(into directory: URL) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         // AppKit controls need an initialised application before they will draw.
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
+
+        if wantsLiveState {
+            renderLive(into: directory)
+            return
+        }
 
         for scheme in [ColorScheme.light, .dark] {
             let suffix = scheme == .light ? "light" : "dark"
@@ -35,6 +47,35 @@ enum ScreenshotRenderer {
         }
 
         FileHandle.standardOutput.write(Data("rendered screenshots into \(directory.path)\n".utf8))
+    }
+
+    private static func renderLive(into directory: URL) {
+        guard let workspace = try? Workspace.applicationSupport() else {
+            FileHandle.standardError.write(Data("no workspace\n".utf8))
+            return
+        }
+        let model = LauncherViewModel(workspace: workspace)
+
+        // Pump the main run loop so the version check can finish before drawing.
+        let finished = Flag()
+        Task { @MainActor in
+            await model.refreshLatest()
+            finished.value = true
+        }
+        let deadline = Date().addingTimeInterval(15)
+        while !finished.value, Date() < deadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+
+        for mode in [UIMode.simple, .advanced] {
+            model.mode = mode
+            render(model: model, scheme: .light, to: directory.appending(path: "live-\(mode.rawValue).png"))
+        }
+        FileHandle.standardOutput.write(Data("rendered live state into \(directory.path)\n".utf8))
+    }
+
+    private final class Flag: @unchecked Sendable {
+        var value = false
     }
 
     // MARK: - Fixtures
