@@ -3,17 +3,27 @@ import SwiftUI
 
 @main
 struct HMCLLauncherApp: App {
+    @State private var model: LauncherViewModel
+
+    init() {
+        if let directory = ScreenshotRenderer.requestedDirectory() {
+            ScreenshotRenderer.renderAll(into: directory)
+            exit(0)
+        }
+
+        let workspace = (try? Workspace.applicationSupport())
+            ?? Workspace(root: URL(fileURLWithPath: NSHomeDirectory())
+                .appending(path: "Library/Application Support/\(AppIdentity.bundleIdentifier)"))
+        _model = State(initialValue: LauncherViewModel(workspace: workspace))
+    }
+
     var body: some Scene {
         WindowGroup(AppIdentity.displayName) {
-            ContentView()
+            ContentView(model: model)
         }
         .windowResizability(.contentSize)
-    }
-}
-
-struct ContentView: View {
-    var body: some View {
-        Text(AppIdentity.displayName)
-            .padding(40)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
     }
 }
