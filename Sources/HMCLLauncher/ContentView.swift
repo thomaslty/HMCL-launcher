@@ -115,10 +115,14 @@ struct StartButton: View {
 /// an online-mode server, so the label says accounts, not "offline mode".
 struct OfflineAccountsToggle: View {
     @Binding var isOn: Bool
+    /// Advanced mode fills the width so the switch lines up with the controls in
+    /// the rows above it. Simple mode keeps the label and switch as one centred
+    /// pair.
+    var fillsWidth = false
 
     var body: some View {
         Toggle("Allow offline accounts", isOn: $isOn)
-            .toggleStyle(.checkbox)
+            .toggleStyle(MossSwitchStyle(fillsWidth: fillsWidth))
             .font(.callout)
             .help("Shows HMCL's offline login option, which it hides by default outside mainland China")
     }
@@ -225,7 +229,7 @@ struct AdvancedModeView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                OfflineAccountsToggle(isOn: $model.offlineAccountsEnabled)
+                OfflineAccountsToggle(isOn: $model.offlineAccountsEnabled, fillsWidth: true)
                 JavaOptionsField(text: $model.customJavaOptions)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

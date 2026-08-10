@@ -154,7 +154,9 @@ enum ScreenshotRenderer {
                 latestNote: nil,
                 launchers: [],
                 runtimes: [],
-                events: []
+                events: [],
+                // Off here on purpose, so a screenshot covers both switch states.
+                offlineAccountsEnabled: false
             )
         )
     }
@@ -182,6 +184,15 @@ enum ScreenshotRenderer {
         window.appearance = hosting.appearance
         window.contentView = hosting
         window.layoutIfNeeded()
+        window.displayIfNeeded()
+
+        // AppKit controls that animate into position — NSSwitch moves its knob —
+        // draw their starting state if captured immediately, which made an "on"
+        // switch photograph as "off". Let the run loop settle first.
+        let settle = Date().addingTimeInterval(0.4)
+        while Date() < settle {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
         window.displayIfNeeded()
 
         guard let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {

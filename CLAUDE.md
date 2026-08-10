@@ -59,6 +59,27 @@ These were established by pulling `HMCL-3.16.3.jar` apart and testing against it
 
 `ImageRenderer` cannot rasterize AppKit-backed controls (pickers, borderless buttons come out blank) — do not switch back to it. For the same reason the log pane uses `VStack`, not `LazyVStack`: lazy containers draw nothing offscreen.
 
+Do not use AppKit's `.switch` toggle style. NSSwitch positions its knob where neither `cacheDisplay` nor `layer.render(in:)` can photograph it, so an enabled switch renders as disabled and the screenshot lies. Use `MossSwitchStyle` in `DesignTokens.swift`, which is drawn from SwiftUI shapes.
+
+## Releasing
+
+Bump all three in the same commit, then tag:
+
+- `Resources/Info.plist` → `CFBundleShortVersionString`
+- `Resources/Info.plist` → `CFBundleVersion`
+- `Sources/LauncherKit/LauncherKit.swift` → `AppIdentity.version`
+
+The README carries no version — Quick start links to Releases and `make-dmg.sh` reads the plist — so there is nothing to change there.
+
+The two plist keys must hold the **same** value. macOS shows `Version 1.0.1 (1)` in the About window whenever they differ, and that trailing build number is not wanted.
+
+```bash
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.2" \
+                        -c "Set :CFBundleVersion 1.0.2" Resources/Info.plist
+```
+
+Pushing a `v*` tag is what publishes the release; `.github/workflows/release.yml` builds the DMG and attaches it. Wait for the master run to go green before tagging, so a broken build never produces a release.
+
 ## Workflow
 
 `openspec/` is gitignored; the change lives in `openspec/changes/add-hmcl-launcher/`. Run `openspec validate <change>` after editing its artifacts.

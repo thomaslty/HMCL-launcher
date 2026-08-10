@@ -18,3 +18,6 @@ build/
 dist/
 # HMCL source, cloned for reference only
 reference/
+
+# macOS
+.DS_Store

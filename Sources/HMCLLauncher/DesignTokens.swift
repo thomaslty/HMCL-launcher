@@ -45,6 +45,49 @@ struct ReadinessDot: View {
     }
 }
 
+/// A switch drawn from SwiftUI shapes rather than AppKit's `.switch` style.
+///
+/// Two reasons. It turns the app's own green rather than the system accent, so
+/// "on" matches the Start button. And AppKit's NSSwitch positions its knob
+/// somewhere `cacheDisplay` cannot photograph — an enabled switch came out
+/// looking off in every screenshot, which made the UI impossible to verify.
+struct MossSwitchStyle: ToggleStyle {
+    /// Advanced mode pushes the switch to the trailing edge so it lines up with
+    /// the controls above it. Simple mode keeps label and switch as one pair.
+    var fillsWidth = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 8) {
+            configuration.label
+            if fillsWidth {
+                Spacer(minLength: 12)
+            }
+            track(isOn: configuration.isOn)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                configuration.isOn.toggle()
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(configuration.isOn ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func track(isOn: Bool) -> some View {
+        Capsule()
+            .fill(isOn ? Palette.go : Palette.pending)
+            .frame(width: 34, height: 20)
+            .overlay(alignment: isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(.white)
+                    .shadow(color: .black.opacity(0.18), radius: 0.8, y: 0.5)
+                    .frame(width: 16, height: 16)
+                    .padding(2)
+            }
+    }
+}
+
 /// The single bold object in the window.
 struct StartButtonStyle: ButtonStyle {
     var enabled: Bool
