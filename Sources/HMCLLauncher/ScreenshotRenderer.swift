@@ -44,6 +44,7 @@ enum ScreenshotRenderer {
             render(model: readyModel(mode: .simple), scheme: scheme, to: directory.appending(path: "simple-\(suffix).png"))
             render(model: readyModel(mode: .advanced), scheme: scheme, to: directory.appending(path: "advanced-\(suffix).png"))
             render(model: coldModel(), scheme: scheme, to: directory.appending(path: "cold-start-\(suffix).png"))
+            render(model: failedModel(), scheme: scheme, to: directory.appending(path: "failed-launch-\(suffix).png"))
         }
 
         FileHandle.standardOutput.write(Data("rendered screenshots into \(directory.path)\n".utf8))
@@ -106,10 +107,40 @@ enum ScreenshotRenderer {
                 ],
                 events: [
                     LogEvent(at: start, message: "Latest release is 3.16.3"),
-                    LogEvent(at: start.addingTimeInterval(1), message: "Liberica 25.0.4+9 ready"),
+                    LogEvent(at: start.addingTimeInterval(1), message: "Java options: -Xmx4G"),
+                    LogEvent(at: start.addingTimeInterval(1), message: "Offline accounts allowed"),
                     LogEvent(at: start.addingTimeInterval(2), message: "HMCL started, process 4412"),
                     LogEvent(at: start.addingTimeInterval(2), message: "Output goes to hmcl-2026-08-09T23-45-22.log"),
-                ]
+                ],
+                customJavaOptions: "-Xmx4G"
+            )
+        )
+    }
+
+    /// A launch killed by a rejected option — the case the liveness check exists
+    /// for, and the one worth being able to look at.
+    private static func failedModel() -> LauncherViewModel {
+        let workspace = previewWorkspace()
+        let start = Date(timeIntervalSince1970: 1_770_000_000)
+        return LauncherViewModel(
+            preview: .init(
+                workspace: workspace,
+                mode: .advanced,
+                latestVersion: "3.16.3",
+                latestNote: nil,
+                launchers: [
+                    InstalledLauncher(version: "3.16.3", jarURL: workspace.launchers.appending(path: "HMCL-3.16.3.jar"))
+                ],
+                runtimes: [
+                    JavaRuntime(id: "liberica-25.0.4+9", version: "25.0.4+9", home: workspace.runtimes.appending(path: "liberica-25.0.4+9"))
+                ],
+                events: [
+                    LogEvent(at: start, message: "Java options: -XX:BogusOption=1"),
+                    LogEvent(at: start.addingTimeInterval(1), message: "Java exited with status 1"),
+                    LogEvent(at: start.addingTimeInterval(1), message: "Unrecognized VM option 'BogusOption=1'"),
+                    LogEvent(at: start.addingTimeInterval(1), message: "Error: Could not create the Java Virtual Machine."),
+                ],
+                customJavaOptions: "-XX:BogusOption=1"
             )
         )
     }

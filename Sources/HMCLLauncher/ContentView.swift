@@ -110,6 +110,36 @@ struct StartButton: View {
     }
 }
 
+/// HMCL hides offline login outside mainland China. This adds the one system
+/// property that turns it back on. It does not make an offline account work on
+/// an online-mode server, so the label says accounts, not "offline mode".
+struct OfflineAccountsToggle: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle("Allow offline accounts", isOn: $isOn)
+            .toggleStyle(.checkbox)
+            .font(.callout)
+            .help("Shows HMCL's offline login option, which it hides by default outside mainland China")
+    }
+}
+
+struct JavaOptionsField: View {
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Java options")
+                .font(TypeScale.eyebrow)
+                .foregroundStyle(.secondary)
+            TextField("-Xmx4G", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .font(TypeScale.data)
+                .help("Passed to the JVM unchanged, before -jar")
+        }
+    }
+}
+
 struct ProblemNote: View {
     let text: String
 
@@ -134,6 +164,8 @@ struct SimpleModeView: View {
                 .padding(.top, 26)
 
             ReadinessStrip(hasLauncher: model.hasLauncher, hasRuntime: model.hasRuntime)
+
+            OfflineAccountsToggle(isOn: $model.offlineAccountsEnabled)
 
             StartButton(model: model)
 
@@ -191,6 +223,12 @@ struct AdvancedModeView: View {
                     onDelete: { model.deleteSelectedRuntime() }
                 )
             }
+
+            VStack(alignment: .leading, spacing: 10) {
+                OfflineAccountsToggle(isOn: $model.offlineAccountsEnabled)
+                JavaOptionsField(text: $model.customJavaOptions)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             StartButton(model: model)
 

@@ -50,6 +50,17 @@ final class LauncherViewModel {
         didSet { persist() }
     }
 
+    /// Adds `-Dhmcl.offline.auth.restricted=false`, which is what makes HMCL
+    /// show the offline login option outside mainland China.
+    var offlineAccountsEnabled: Bool {
+        didSet { persist() }
+    }
+
+    /// Passed to the JVM unchanged, including anything that will break it.
+    var customJavaOptions: String {
+        didSet { persist() }
+    }
+
     // MARK: - Collaborators
 
     private let workspace: Workspace
@@ -78,6 +89,8 @@ final class LauncherViewModel {
 
         let saved = stateStore.load()
         mode = saved.mode
+        offlineAccountsEnabled = saved.offlineAccountsEnabled
+        customJavaOptions = saved.customJavaOptions
         refreshInstalled()
         selectedLauncher = installedLaunchers.first { $0.version == saved.selectedLauncherVersion }
             ?? installedLaunchers.first
@@ -99,6 +112,8 @@ final class LauncherViewModel {
         launchService = HMCLLaunchService(workspace: preview.workspace)
 
         mode = preview.mode
+        offlineAccountsEnabled = preview.offlineAccountsEnabled
+        customJavaOptions = preview.customJavaOptions
         latestVersion = preview.latestVersion
         latestNote = preview.latestNote
         installedLaunchers = preview.launchers
@@ -116,6 +131,8 @@ final class LauncherViewModel {
         var launchers: [InstalledLauncher]
         var runtimes: [JavaRuntime]
         var events: [LogEvent]
+        var offlineAccountsEnabled: Bool = true
+        var customJavaOptions: String = ""
     }
 
     // MARK: - Derived
@@ -183,9 +200,28 @@ final class LauncherViewModel {
             }
 
             activity = .starting
-            let running = try await launchService.launch(runtime: selectedRuntime, launcher: selectedLauncher)
+            let options = JavaOptions.parse(customJavaOptions)
+            if !options.isEmpty {
+                log("Java options: \(options.joined(separator: " "))")
+            }
+            if offlineAccountsEnabled {
+                log("Offline accounts allowed")
+            }
+
+            let running = try await launchService.launch(
+                runtime: selectedRuntime,
+                launcher: selectedLauncher,
+                javaOptions: options,
+                offlineAccountsEnabled: offlineAccountsEnabled
+            )
             log("HMCL started, process \(running.processIdentifier)")
             log("Output goes to \(running.logFile.lastPathComponent)")
+        } catch LaunchError.exitedImmediately(let status, let output) {
+            problem = "Java exited straight away. Check your Java options."
+            log("Java exited with status \(status)")
+            for line in output.split(separator: "\n") where !line.isEmpty {
+                log(String(line))
+            }
         } catch {
             problem = describe(error)
             log("Start failed: \(error)")
@@ -283,7 +319,9 @@ final class LauncherViewModel {
             LauncherState(
                 mode: mode,
                 selectedLauncherVersion: selectedLauncher?.version,
-                selectedRuntimeID: selectedRuntime?.id
+                selectedRuntimeID: selectedRuntime?.id,
+                offlineAccountsEnabled: offlineAccountsEnabled,
+                customJavaOptions: customJavaOptions
             )
         )
     }
