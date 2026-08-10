@@ -62,6 +62,90 @@ struct EndToEndTests {
         kill(running.processIdentifier, SIGTERM)
     }
 
+    /// Proves the two new controls reach the real JVM.
+    ///
+    /// `-Xmx` is observable: HMCL logs `JVM Max Memory`, so a small heap shows
+    /// up in its own output. The offline property has no such echo, so that one
+    /// is checked on the process's actual command line.
+    @Test func javaOptionsAndTheOfflineFlagReachTheRunningJVM() async throws {
+        let workspace = try Workspace.applicationSupport()
+        try workspace.createDirectories()
+
+        let installer = RuntimeInstaller(workspace: workspace, downloader: URLSessionDownloader())
+        guard let runtime = installer.installed().first,
+              let launcher = LauncherInstaller(workspace: workspace, downloader: URLSessionDownloader())
+                  .installed().first
+        else {
+            Issue.record("run coldStartInstallsEverythingAndLaunchesHMCL first")
+            return
+        }
+
+        let running = try await HMCLLaunchService(workspace: workspace).launch(
+            runtime: runtime,
+            launcher: launcher,
+            javaOptions: ["-Xmx1G"],
+            offlineAccountsEnabled: true
+        )
+
+        let log = try await waitForLine(containing: "JVM Max Memory", in: running.logFile)
+        let heapLine = log.split(separator: "\n").first { $0.contains("JVM Max Memory") } ?? ""
+        print("heap line: \(heapLine)")
+        let megabytes = heapLine.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.max() ?? 0
+        // The machine has 32 GB, so the default heap is 8192 MiB. Anything near
+        // 1024 can only have come from our -Xmx1G.
+        #expect(megabytes > 0 && megabytes < 2048, "expected a ~1 GiB heap, got \(heapLine)")
+
+        let commandLine = Self.commandLine(of: running.processIdentifier)
+        print("argv: \(commandLine)")
+        #expect(commandLine.contains("-Dhmcl.offline.auth.restricted=false"))
+        #expect(commandLine.contains("-Xmx1G"))
+
+        kill(running.processIdentifier, SIGTERM)
+    }
+
+    /// The liveness check against a real JVM rejecting a real option.
+    @Test func aRejectedOptionIsReportedInsteadOfAPid() async throws {
+        let workspace = try Workspace.applicationSupport()
+        let installer = RuntimeInstaller(workspace: workspace, downloader: URLSessionDownloader())
+        guard let runtime = installer.installed().first,
+              let launcher = LauncherInstaller(workspace: workspace, downloader: URLSessionDownloader())
+                  .installed().first
+        else {
+            Issue.record("run coldStartInstallsEverythingAndLaunchesHMCL first")
+            return
+        }
+
+        var thrown: LaunchError?
+        do {
+            _ = try await HMCLLaunchService(workspace: workspace).launch(
+                runtime: runtime,
+                launcher: launcher,
+                javaOptions: ["-XX:BogusOption=1"]
+            )
+        } catch let error as LaunchError {
+            thrown = error
+        }
+
+        guard case .exitedImmediately(let status, let output) = thrown else {
+            Issue.record("expected exitedImmediately, got \(String(describing: thrown))")
+            return
+        }
+        print("status \(status), output:\n\(output)")
+        #expect(output.contains("Unrecognized VM option"))
+    }
+
+    private static func commandLine(of pid: Int32) -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-o", "args=", "-p", String(pid)]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try? process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+
     private func waitForLine(
         containing needle: String,
         in url: URL,

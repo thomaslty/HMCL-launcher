@@ -90,7 +90,7 @@ public struct HMCLLaunchService: Sendable {
             // working directory, so running from home puts saves in the shared
             // ~/.minecraft rather than burying them inside the app folder.
             workingDirectory: homeDirectory,
-            logFile: workspace.logs.appending(path: "hmcl-\(Self.timestamp()).log")
+            logFile: workspace.logs.appending(path: "hmcl-\(Self.timestamp())-\(Self.suffix()).log")
         )
     }
 
@@ -181,6 +181,13 @@ public struct HMCLLaunchService: Sendable {
         guard let text = try? String(contentsOf: logFile, encoding: .utf8) else { return "" }
         let all = text.split(separator: "\n", omittingEmptySubsequences: false)
         return all.suffix(lines).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The timestamp only has second resolution, so two launches in the same
+    /// second would share a log file and the second would truncate the first's
+    /// output. Found by running two launches at once.
+    private static func suffix() -> String {
+        String(UUID().uuidString.prefix(4)).lowercased()
     }
 
     private static func timestamp() -> String {
