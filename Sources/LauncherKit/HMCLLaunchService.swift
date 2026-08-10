@@ -36,7 +36,17 @@ public struct HMCLLaunchService: Sendable {
         self.homeDirectory = homeDirectory
     }
 
-    public func plan(runtime: JavaRuntime?, launcher: InstalledLauncher?) throws -> LaunchPlan {
+    /// The property HMCL reads to decide whether to hide offline login.
+    /// `AccountListPage.java:65` in v3.16.3, inside a static initializer — which
+    /// is why it has to be on the command line rather than set later.
+    static let offlineRestrictionProperty = "hmcl.offline.auth.restricted"
+
+    public func plan(
+        runtime: JavaRuntime?,
+        launcher: InstalledLauncher?,
+        javaOptions: [String] = [],
+        offlineAccountsEnabled: Bool = false
+    ) throws -> LaunchPlan {
         guard let runtime,
               FileManager.default.isExecutableFile(atPath: runtime.javaExecutable.path)
         else {
@@ -56,13 +66,22 @@ public struct HMCLLaunchService: Sendable {
         environment["HMCL_LOCAL_HOME"] = workspace.hmclLocalHome.path
         environment["HMCL_DEPENDENCIES_DIR"] = workspace.hmclDependencies.path
 
+        // Ours first, the user's last. The JVM takes the last -D for a given key,
+        // so anything typed by hand overrides what we set — including the update
+        // source. Nothing typed here is filtered.
+        var arguments = ["-Dhmcl.update_source.override=\(Self.disabledUpdateSource)"]
+
+        let offlinePrefix = "-D\(Self.offlineRestrictionProperty)="
+        if offlineAccountsEnabled, !javaOptions.contains(where: { $0.hasPrefix(offlinePrefix) }) {
+            arguments.append("\(offlinePrefix)false")
+        }
+
+        arguments += javaOptions
+        arguments += ["-jar", launcher.jarURL.path]
+
         return LaunchPlan(
             executable: runtime.javaExecutable,
-            arguments: [
-                "-Dhmcl.update_source.override=\(Self.disabledUpdateSource)",
-                "-jar",
-                launcher.jarURL.path,
-            ],
+            arguments: arguments,
             environment: environment,
             // HMCL resolves its game directory as ".minecraft" relative to the
             // working directory, so running from home puts saves in the shared
